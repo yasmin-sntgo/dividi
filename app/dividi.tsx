@@ -1,49 +1,383 @@
-'use client';
-import {useEffect,useRef,useState} from 'react';
-import {Home,Users,User,Plus,Receipt,ArrowDownLeft,ArrowUpRight,Check,ChevronRight,Umbrella,House,GraduationCap,Wallet,X,Split,CheckCheck,Pencil,Trash2,LogOut,Info,LoaderCircle} from 'lucide-react';
-import {Data,Group,Expense,balances,transfers,money,cents,equal,example} from './model';
-const uid=()=>crypto.randomUUID();
-const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-const initials=(s:string)=>s.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
-function Avatar({name,index=0}:{name:string,index?:number}){return <span className={'avatar tone'+index%4}>{initials(name)}</span>}
-function GroupIcon({category}:{category:string}){const Icon=category==='Viagem'?Umbrella:category==='Casa'?House:category==='Estudos'?GraduationCap:Users;return <span className="group-icon"><Icon size={24}/></span>}
-export default function Dividi({user}:{user:{name:string,email:string}|null}){
- const [data,setData]=useState<Data>({groups:[],name:'Você'}),[version,setVersion]=useState(0),[loading,setLoading]=useState(!!user),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [page,setPage]=useState('home'),[selected,setSelected]=useState('example'),[tab,setTab]=useState('expenses'),[demo,setDemo]=useState<Group>(example),[modal,setModal]=useState<'group'|'expense'|'detail'|null>(null),[editing,setEditing]=useState<Expense|null>(null),[review,setReview]=useState<Expense|null>(null);
- const [groupName,setGroupName]=useState(''),[category,setCategory]=useState('Viagem'),[names,setNames]=useState(''),[title,setTitle]=useState(''),[amount,setAmount]=useState(''),[payer,setPayer]=useState(''),[participants,setParticipants]=useState<string[]>([]),[mode,setMode]=useState('equal'),[custom,setCustom]=useState<Record<string,string>>({}),[date,setDate]=useState(today()),[profileName,setProfileName]=useState('');
- const dialog=useRef<HTMLDialogElement>(null),lock=useRef(false);const isDemo=selected==='example';const groups=data.groups;const g=isDemo?demo:groups.find(x=>x.id===selected)||demo;const b=balances(g),tx=transfers(g);const person=(id:string)=>g.people.find(p=>p.id===id)?.name||'Participante';
- async function load(){setLoading(true);setError('');try{const res=await fetch('/api/data');const val=await res.json() as {data:Data,version:number,error:string};if(!res.ok)throw Error(val.error);setData(val.data);setVersion(val.version);setProfileName(val.data.name);if(val.data.groups.length)setSelected(val.data.groups[0].id)}catch(e){setError((e as Error).message)}finally{setLoading(false)}}
- useEffect(()=>{if(user)void load()},[]);
- useEffect(()=>{if(modal){dialog.current?.showModal();dialog.current?.querySelector<HTMLInputElement>('input')?.focus()}else dialog.current?.close()},[modal]);
- async function save(next:Data){if(lock.current)return false;if(!user){setError('Entre com sua conta para salvar seus grupos.');return false}lock.current=true;setBusy(true);setError('');try{const res=await fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:next,version})});const val=await res.json() as {data:Data,version:number,error:string};if(!res.ok)throw Error(val.error);setData(val.data);setVersion(val.version);setNotice('Alterações salvas.');return true}catch(e){setError((e as Error).message);return false}finally{lock.current=false;setBusy(false)}}
- async function updateGroup(next:Group){if(isDemo){setDemo(next);setNotice('Exemplo atualizado. Seus grupos reais não foram alterados.');return true}return save({...data,groups:groups.map(x=>x.id===next.id?next:x)})}
- function nav(p:string){setPage(p);setError('');setNotice('')}
- function openExpense(e:Expense|null=null){setEditing(e);setReview(null);setTitle(e?.title||'');setAmount(e?(e.cents/100).toFixed(2).replace('.',','):'');setPayer(e?.payer||g.people[0].id);setParticipants(e?Object.keys(e.shares):g.people.map(p=>p.id));setCustom(e?Object.fromEntries(Object.entries(e.shares).map(([id,n])=>[id,(n/100).toFixed(2).replace('.',',')])):{});setMode(e?'custom':'equal');setDate(e?.date||today());setError('');setModal('expense')}
- function openGroup(){setGroupName('');setNames('');setCategory('Viagem');setModal('group');setError('')}
- async function createGroup(e:React.FormEvent){e.preventDefault();try{const others=names.split(/[,\n]/).map(s=>s.trim()).filter(Boolean);const members=[data.name,...others];if(!groupName.trim()||others.length<1)throw Error('Informe o nome do grupo e pelo menos mais um participante.');if(members.length>30||new Set(members.map(s=>s.toLowerCase())).size!==members.length)throw Error('Use nomes diferentes para os participantes, até 30 pessoas.');const next:Group={id:uid(),name:groupName.trim(),category,people:members.map(name=>({id:uid(),name})),expenses:[],payments:[]};if(await save({...data,groups:[...groups,next]})){setSelected(next.id);setPage('group');setTab('expenses');setModal(null)}}catch(e){setError((e as Error).message)}}
- function prepareExpense(e:React.FormEvent){e.preventDefault();try{const total=cents(amount);if(!title.trim()||!total||!participants.length)throw Error('Informe descrição, valor positivo e pelo menos um participante.');const shares=mode==='equal'?equal(total,participants):Object.fromEntries(participants.map(id=>[id,cents(custom[id]||'0')]));if(Object.values(shares).reduce((a,b)=>a+b,0)!==total)throw Error('Os valores individuais devem somar '+money(total)+'.');setReview({id:editing?.id||uid(),title:title.trim(),cents:total,payer,shares,date});setError('')}catch(e){setError((e as Error).message)}}
- async function commitExpense(){if(!review)return;const next={...g,expenses:editing?g.expenses.map(e=>e.id===editing.id?review:e):[...g.expenses,review]};if(await updateGroup(next)){setModal(null);setPage('group');setTab('expenses')}}
- const ownTotals=groups.reduce((v,x)=>{const n=balances(x)[x.people[0].id];return {receive:v.receive+Math.max(n,0),owe:v.owe+Math.max(-n,0)}},{receive:0,owe:0});
- function groupCards(list:Group[]){return <div className="group-grid">{list.map(x=>{const n=balances(x)[x.people[0].id];return <button className="group-card" key={x.id} onClick={()=>{setSelected(x.id);nav('group');setTab('expenses')}}><div className="row"><GroupIcon category={x.category}/><div className="grow"><h3>{x.name}</h3><p>{x.people.length} participantes · {x.expenses.length} despesas</p></div><ChevronRight size={20}/></div><div className="row group-bottom"><div className="avatar-stack">{x.people.slice(0,4).map((p,i)=><Avatar name={p.name} index={i} key={p.id}/>)}</div><div className="right"><small>{x.id==='example'?'Saldo de João · exemplo':'Seu saldo'}</small><strong className={n>0?'green':n<0?'coral':'muted'}>{n===0?'Em dia':money(n)}</strong></div></div></button>})}</div>}
- return <div className="app"><aside className="sidebar"><a className="brand" href="#" onClick={e=>{e.preventDefault();nav('home')}}><span className="logo"><Split/></span>Dividi<span className="web-label">WEB</span></a><p className="nav-caption">SUAS CONTAS, EM ORDEM</p><nav>{([['home','Início',Home],['groups','Grupos',Users],['profile','Perfil',User]] as const).map(([id,label,Icon])=><button key={id as string} className={page===id||(id==='groups'&&page==='group')?'active':''} onClick={()=>nav(id as string)}><Icon size={21}/><span>{label as string}</span></button>)}</nav><div className="sidebar-tip"><Split size={25}/><strong>Mais momentos.<br/>Menos contas.</strong><p>Registre os gastos. O Dividi cuida do acerto.</p></div><div className="sidebar-account"><Avatar name={data.name}/><div><strong>{user?data.name:'Visitante'}</strong><small>{user?'Minha conta':'Modo de exemplo'}</small></div></div></aside>
- <main><header className="topbar"><span>Despesas compartilhadas</span><div className="row"><span className="private-tag">{user?'Conta pessoal':'Experimente o Dividi'}</span><button className="avatar-button" aria-label="Abrir perfil" onClick={()=>nav('profile')}><Avatar name={data.name}/></button></div></header><div className="content">
- {error&&!modal&&<div role="alert" className="alert error">{error} {loading?null:<button onClick={()=>void load()}>Recarregar</button>}</div>}{notice&&!modal&&<div className="alert success" role="status">{notice}<button aria-label="Fechar aviso" onClick={()=>setNotice('')}><X size={18}/></button></div>}
- {loading?<div className="loading"><LoaderCircle className="spin"/>Carregando seus grupos…</div>:<>
- {(page==='home'||page==='groups')&&<><div className="heading"><div><p className="eyebrow">{page==='home'?'UM POUCO DE ORGANIZAÇÃO, MUITA TRANQUILIDADE':'JUNTOS, SEM CONFUSÃO'}</p><h1>{page==='home'?(user?'Olá, '+data.name+'!':'Dividir ficou mais fácil.'):'Seus grupos'}</h1><p>{page==='home'?'Tudo o que você pagou, deve ou tem a receber, em um só lugar.':`${groups.length} ${groups.length===1?'grupo criado':'grupos criados'}`}</p></div><button className="primary" disabled={busy} onClick={openGroup}><Plus size={20}/>Criar grupo</button></div>
- {page==='home'&&<div className="summary-grid"><div className="summary"><span className="status-icon coral-bg"><ArrowUpRight/></span><p>Você tem a pagar</p><strong className="coral">{money(ownTotals.owe)}</strong><small>Nos seus grupos</small></div><div className="summary"><span className="status-icon green-bg"><ArrowDownLeft/></span><p>Você tem a receber</p><strong className="green">{money(ownTotals.receive)}</strong><small>Nos seus grupos</small></div><div className="summary blue"><Wallet/><p>Despesas registradas</p><strong>{money(groups.reduce((a,x)=>a+x.expenses.reduce((a,e)=>a+e.cents,0),0))}</strong><small>{groups.reduce((a,x)=>a+x.expenses.length,0)} despesas · {groups.length} grupos</small></div></div>}
- <div className="section-title"><h2>{page==='home'?'Seus grupos recentes':'Todos os grupos'}</h2>{page==='home'&&groups.length>0&&<button className="text-button" onClick={()=>nav('groups')}>Ver todos</button>}</div>{groups.length?groupCards(page==='home'?groups.slice(-3).reverse():groups):<div className="empty"><span className="group-icon"><Users/></span><div><h3>A primeira conta começa com um grupo.</h3><p>Crie um grupo para uma viagem, sua casa ou um encontro com amigos.</p></div><button className="outline" onClick={openGroup}>Criar meu primeiro grupo</button></div>}
- {groups.length===0&&<section className="example-section"><div className="section-title"><h2>Veja como funciona</h2><span className="pill">DADOS DE EXEMPLO</span></div>{groupCards([demo])}<div className="how"><span>01 <strong>Registre quem pagou</strong></span><span>02 <strong>Escolha quem participou</strong></span><span>03 <strong>Consulte o acerto</strong></span></div></section>}</>}
- {page==='group'&&<><button className="text-button back" onClick={()=>nav('groups')}>Voltar para grupos</button><div className="heading"><div><div className="row"><p className="eyebrow">{g.category.toUpperCase()}</p>{isDemo&&<span className="pill">EXEMPLO INTERATIVO</span>}</div><h1>{g.name}</h1><p>{g.people.map(p=>p.name).join(', ')}</p></div><button className="primary" disabled={busy} onClick={()=>openExpense()}><Plus size={20}/>Adicionar despesa</button></div>
- {isDemo&&<div className="alert info"><Info size={18}/>Você está testando um exemplo. Crie seu grupo para guardar suas contas.<button onClick={openGroup}>Criar grupo</button></div>}
- <div className="group-layout"><div className="group-main"><div className="group-total"><div><p>Total de despesas</p><strong>{money(g.expenses.reduce((n,e)=>n+e.cents,0))}</strong><small>{g.expenses.length} despesas registradas</small></div><Wallet size={36}/></div><div className="tabs"><button className={tab==='expenses'?'selected':''} onClick={()=>setTab('expenses')}><Receipt size={18}/>Despesas</button><button className={tab==='settlement'?'selected':''} onClick={()=>setTab('settlement')}><Split size={18}/>Acerto do grupo<span>{tx.length}</span></button></div>
- {tab==='expenses'?<><div className="section-title"><h2>Histórico de despesas</h2><small>{g.expenses.length} registros</small></div><div className="expense-list">{!g.expenses.length&&<div className="empty"><p>Nenhuma despesa ainda. Registre o primeiro gasto do grupo.</p></div>}{[...g.expenses].reverse().map(e=><button className="expense-row" key={e.id} onClick={()=>{setEditing(e);setModal('detail')}}><span className="group-icon"><Receipt size={22}/></span><div className="grow"><h3>{e.title}</h3><p>{person(e.payer)} pagou · {Object.keys(e.shares).length} pessoas</p><small>{e.date.split('-').reverse().join('/')}</small></div><strong>{money(e.cents)}</strong><ChevronRight size={18}/></button>)}</div></>:<><div className="settlement-banner"><span className="pill"><CheckCheck size={15}/>ACERTO SIMPLIFICADO</span><h2>{tx.length?'Quem paga quem?':'Tudo em dia!'}</h2><p>{tx.length?'Estes pagamentos zeram os saldos atuais do grupo.':'Não há pagamentos pendentes neste grupo.'}</p></div><p className="muted payment-help">Marque somente depois de realizar a transferência. O Dividi registra o acerto, sem movimentar dinheiro.</p><div className="expense-list">{tx.map(t=><div className="transfer" key={t.from+t.to}><Avatar name={person(t.from)} index={g.people.findIndex(p=>p.id===t.from)}/><div className="grow"><strong>{person(t.from)} paga a {person(t.to)}</strong><small>Acerto pendente</small></div><strong className="blue-text">{money(t.cents)}</strong><button className="outline" disabled={busy} onClick={()=>void updateGroup({...g,payments:[...g.payments,{...t,id:uid(),date:new Date().toISOString()}]})}><Check size={17}/>Registrar pago</button></div>)}</div>{g.payments.length>0&&<><div className="section-title"><h2>Acertos registrados</h2></div>{[...g.payments].reverse().map(p=><div className="paid-row" key={p.id}><CheckCheck size={18}/><div className="grow"><strong>{person(p.from)} pagou a {person(p.to)}</strong><small>{new Date(p.date).toLocaleDateString('pt-BR')}</small></div><strong>{money(p.cents)}</strong><button className="text-button" disabled={busy} onClick={()=>void updateGroup({...g,payments:g.payments.filter(x=>x.id!==p.id)})}>Desfazer</button></div>)}</>}</>}
- </div><aside className="balance-panel"><div className="section-title"><h2>Saldos do grupo</h2><Users size={20}/></div><p className="muted">O que cada pessoa tem a pagar ou receber.</p>{g.people.map((p,i)=><div className="balance-row" key={p.id}><Avatar name={p.name} index={i}/><div className="grow"><strong>{p.name}</strong><small>{b[p.id]>0?'A receber':b[p.id]<0?'A pagar':'Em dia'}</small></div><strong className={b[p.id]>0?'green':b[p.id]<0?'coral':'muted'}>{money(Math.abs(b[p.id]))}</strong></div>)}<div className="balance-note"><Info size={17}/><span>Saldo = valor pago menos sua parte nas despesas, considerando os acertos.</span></div><button className="outline full" onClick={()=>setTab(tab==='expenses'?'settlement':'expenses')}>{tab==='expenses'?'Ver acerto do grupo':'Ver despesas'}</button></aside></div></>}
- {page==='profile'&&<><div className="heading"><div><p className="eyebrow">DO SEU JEITO</p><h1>Meu perfil</h1><p>Sua conta e informações sobre o Dividi.</p></div></div><div className="profile-card"><Avatar name={data.name}/><h2>{user?data.name:'Bem-vindo ao Dividi'}</h2><p>{user?.email||'Entre para salvar e consultar seus grupos em outros dispositivos.'}</p>{user?<form onSubmit={async e=>{e.preventDefault();if(await save({...data,name:profileName.trim(),groups:groups.map(g=>({...g,people:g.people.map((p,i)=>i===0?{...p,name:profileName.trim()}:p)}))}))setNotice('Perfil atualizado.')}}><label>Como você quer ser chamado?<input maxLength={60} required value={profileName} onChange={e=>setProfileName(e.target.value)}/></label><button className="primary" disabled={busy||!profileName.trim()}>Salvar nome</button></form>:<a className="primary" href="/signin-with-chatgpt?return_to=%2F" target="_top">Entrar com ChatGPT</a>}</div><div className="profile-info"><h3>Seu Dividi</h3><p>Seus grupos ficam vinculados à sua conta. Os participantes são cadastrados por nome; esta versão permite que você organize as despesas por eles.</p><p>O acerto é uma sugestão de transferências. Nenhum pagamento é feito pelo site.</p>{user&&<a className="logout" href="/signout-with-chatgpt?return_to=%2F" target="_top"><LogOut size={18}/>Sair da conta</a>}</div></>}
- </>}
- <footer>Dividi <span>·</span> Boas contas. Bons momentos.</footer></div></main>
- <dialog ref={dialog} onCancel={()=>{if(!busy)setModal(null)}} onClose={()=>{if(!busy)setModal(null)}}><div className="modal-header"><div><p className="eyebrow">{modal==='group'?'COMECE POR AQUI':g.name.toUpperCase()}</p><h2>{modal==='group'?'Criar grupo':modal==='detail'?'Detalhes da despesa':review?'Confira a divisão':editing?'Editar despesa':'Nova despesa'}</h2></div><button className="icon-button" aria-label="Fechar janela" disabled={busy} onClick={()=>setModal(null)}><X/></button></div>{error&&<div role="alert" className="alert error">{error}</div>}
- {modal==='group'&&<>{!user?<div className="sign-in"><p>Entre com sua conta para criar grupos e guardar as despesas.</p><a className="primary" target="_top" href="/signin-with-chatgpt?return_to=%2F">Entrar com ChatGPT</a></div>:<form onSubmit={createGroup}><label>Nome do grupo<input required maxLength={80} placeholder="Ex.: Viagem para a praia" value={groupName} onChange={e=>setGroupName(e.target.value)}/></label><label>Tipo de grupo<select value={category} onChange={e=>setCategory(e.target.value)}>{['Viagem','Casa','Amigos','Estudos','Outro'].map(c=><option key={c}>{c}</option>)}</select></label><label>Outros participantes<textarea required placeholder="Ana, Maria, Pedro" value={names} onChange={e=>setNames(e.target.value)}/></label><p className="muted">Separe os nomes por vírgulas. Você ({data.name}) já faz parte do grupo.</p><button className="primary full" disabled={busy}>{busy?'Salvando…':'Criar grupo'}</button></form>}</>}
- {modal==='expense'&&(review?<><div className="review-total"><span className="status-icon green-bg"><Check/></span><h3>{review.title}</h3><p>Valor total</p><strong>{money(review.cents)}</strong></div><h3>Divisão</h3>{Object.entries(review.shares).map(([id,n])=><div className="balance-row" key={id}><Avatar name={person(id)}/><strong className="grow">{person(id)}{id===review.payer&&<small>Pagou o total</small>}</strong><strong>{money(n)}</strong></div>)}<div className="alert info"><Info size={18}/>{person(review.payer)} pagou {money(review.cents)}. A divisão acima será adicionada ao grupo.</div><div className="row"><button className="outline" disabled={busy} onClick={()=>setReview(null)}>Revisar dados</button><button className="primary grow" disabled={busy} onClick={()=>void commitExpense()}>{busy?'Salvando…':editing?'Salvar alterações':'Adicionar ao grupo'}</button></div></>:<form onSubmit={prepareExpense}><label>Descrição<input required maxLength={100} placeholder="Ex.: Restaurante" value={title} onChange={e=>setTitle(e.target.value)}/></label><div className="form-columns"><label>Valor total (R$)<input required inputMode="decimal" placeholder="0,00" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Data<input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div><label>Quem pagou?<select value={payer} onChange={e=>setPayer(e.target.value)}>{g.people.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><fieldset><legend>Quem participou?</legend>{g.people.map((p,i)=><label className="checkbox-row" key={p.id}><input type="checkbox" checked={participants.includes(p.id)} onChange={e=>setParticipants(e.target.checked?[...participants,p.id]:participants.filter(id=>id!==p.id))}/><Avatar name={p.name} index={i}/><span>{p.name}</span></label>)}</fieldset><label>Como dividir?<select value={mode} onChange={e=>setMode(e.target.value)}><option value="equal">Igualmente</option><option value="custom">Valores diferentes</option></select></label>{mode==='custom'&&participants.map(id=><label className="custom-row" key={id}>{person(id)}<input inputMode="decimal" placeholder="0,00" value={custom[id]||''} onChange={e=>setCustom({...custom,[id]:e.target.value})}/></label>)}{mode==='equal'&&<p className="muted">Centavos restantes são distribuídos entre os participantes para fechar o total.</p>}<button className="primary full" disabled={busy}>Revisar divisão</button></form>)}
- {modal==='detail'&&editing&&<><div className="review-total"><h3>{editing.title}</h3><strong>{money(editing.cents)}</strong><p>{person(editing.payer)} pagou · {editing.date.split('-').reverse().join('/')}</p></div><h3>Parte de cada pessoa</h3>{Object.entries(editing.shares).map(([id,n])=><div className="balance-row" key={id}><Avatar name={person(id)}/><strong className="grow">{person(id)}</strong><strong>{money(n)}</strong></div>)}<div className="row modal-actions"><button className="outline grow" disabled={busy} onClick={()=>openExpense(editing)}><Pencil size={18}/>Editar</button><button className="danger" disabled={busy} onClick={async()=>{if(confirm('Excluir esta despesa? Os saldos serão recalculados.'))if(await updateGroup({...g,expenses:g.expenses.filter(e=>e.id!==editing.id)}))setModal(null)}}><Trash2 size={18}/>Excluir</button></div></>}
- </dialog></div>
+import { useEffect, useRef, useState } from 'react';
+import { Home, Users, User as UserIcon, Split, X, LoaderCircle } from 'lucide-react';
+import type { Data, Expense, Group, SavedData, User } from './model';
+import { example } from './model';
+import { request, sendJson } from './api';
+import { Avatar } from './ui';
+import AuthForm from './auth-form';
+import GroupsScreen from './groups-screen';
+import GroupScreen from './group-screen';
+import ProfileScreen from './profile-screen';
+import GroupForm from './group-form';
+import ExpenseForm from './expense-form';
+import ExpenseDetails from './expense-details';
+
+type Page = 'home' | 'groups' | 'group' | 'profile';
+type Modal = 'group' | 'expense' | 'detail' | null;
+type Props = {
+  user: User | null;
+  onAuthenticated: (user: User) => void;
+  onLogout: () => Promise<void>;
+};
+
+export default function Dividi({ user, onAuthenticated, onLogout }: Props) {
+  // Aqui ficam apenas a navegação e os dados compartilhados entre as telas.
+  const [data, setData] = useState<Data>({ groups: [], name: 'Você' });
+  const [version, setVersion] = useState(0);
+  const [loading, setLoading] = useState(Boolean(user));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [page, setPage] = useState<Page>('home');
+  const [selectedGroupId, setSelectedGroupId] = useState('example');
+  const [groupTab, setGroupTab] = useState<'expenses' | 'settlement'>('expenses');
+  const [demo, setDemo] = useState<Group>(example);
+  const [modal, setModal] = useState<Modal>(null);
+  const [editing, setEditing] = useState<Expense | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const saving = useRef(false);
+
+  const isDemo = selectedGroupId === 'example';
+  const group = isDemo ? demo : data.groups.find((group) => group.id === selectedGroupId) || demo;
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const saved = await request<SavedData>('/api/data');
+      setData(saved.data);
+      setVersion(saved.version);
+      if (saved.data.groups.length) setSelectedGroupId(saved.data.groups[0].id);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (user) void load();
+  }, [user?.email]);
+  useEffect(() => {
+    if (modal) {
+      dialog.current?.showModal();
+      dialog.current?.querySelector<HTMLInputElement>('input')?.focus();
+    } else {
+      dialog.current?.close();
+    }
+  }, [modal]);
+
+  async function save(next: Data) {
+    if (saving.current) return false;
+    if (!user) {
+      setError('Entre com sua conta para salvar seus grupos.');
+      return false;
+    }
+
+    saving.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await sendJson<SavedData>('/api/data', 'PUT', { data: next, version });
+      setData(saved.data);
+      setVersion(saved.version);
+      setNotice('Alterações salvas.');
+      return true;
+    } catch (error) {
+      setError((error as Error).message);
+      return false;
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function updateGroup(next: Group) {
+    if (isDemo) {
+      setDemo(next);
+      setNotice('Exemplo atualizado. Seus grupos reais não foram alterados.');
+      return true;
+    }
+    return save({
+      ...data,
+      groups: data.groups.map((group) => (group.id === next.id ? next : group)),
+    });
+  }
+
+  function navigate(nextPage: Page) {
+    setPage(nextPage);
+    setError('');
+    setNotice('');
+  }
+  function openGroup(groupId: string) {
+    setSelectedGroupId(groupId);
+    navigate('group');
+    setGroupTab('expenses');
+  }
+  function openGroupForm() {
+    setError('');
+    setModal('group');
+  }
+  function openExpense(expense: Expense | null = null) {
+    setEditing(expense);
+    setReviewing(false);
+    setError('');
+    setModal('expense');
+  }
+
+  async function createGroup(group: Group) {
+    if (await save({ ...data, groups: [...data.groups, group] })) {
+      openGroup(group.id);
+      setModal(null);
+    }
+  }
+
+  async function saveExpense(expense: Expense) {
+    const expenses = editing
+      ? group.expenses.map((current) => (current.id === editing.id ? expense : current))
+      : [...group.expenses, expense];
+    if (await updateGroup({ ...group, expenses })) {
+      setModal(null);
+      setPage('group');
+      setGroupTab('expenses');
+    }
+  }
+
+  async function saveName(name: string) {
+    const groups = data.groups.map((group) => ({
+      ...group,
+      people: group.people.map((person, index) => (index === 0 ? { ...person, name } : person)),
+    }));
+    if (await save({ ...data, name, groups })) setNotice('Perfil atualizado.');
+  }
+
+  async function logout() {
+    setBusy(true);
+    try {
+      await onLogout();
+    } catch (error) {
+      setError((error as Error).message);
+      setBusy(false);
+    }
+  }
+
+  async function deleteExpense() {
+    if (!editing || !confirm('Excluir esta despesa? Os saldos serão recalculados.')) return;
+    if (
+      await updateGroup({
+        ...group,
+        expenses: group.expenses.filter((expense) => expense.id !== editing.id),
+      })
+    )
+      setModal(null);
+  }
+
+  const modalTitle =
+    modal === 'group'
+      ? 'Criar grupo'
+      : modal === 'detail'
+        ? 'Detalhes da despesa'
+        : reviewing
+          ? 'Confira a divisão'
+          : editing
+            ? 'Editar despesa'
+            : 'Nova despesa';
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <a
+          className="brand"
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate('home');
+          }}
+        >
+          <span className="logo">
+            <Split />
+          </span>
+          Dividi<span className="web-label">WEB</span>
+        </a>
+        <p className="nav-caption">SUAS CONTAS, EM ORDEM</p>
+        <nav>
+          {(
+            [
+              ['home', 'Início', Home],
+              ['groups', 'Grupos', Users],
+              ['profile', 'Perfil', UserIcon],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              className={page === id || (id === 'groups' && page === 'group') ? 'active' : ''}
+              onClick={() => navigate(id)}
+            >
+              <Icon size={21} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-tip">
+          <Split size={25} />
+          <strong>
+            Mais momentos.
+            <br />
+            Menos contas.
+          </strong>
+          <p>Registre os gastos. O Dividi cuida do acerto.</p>
+        </div>
+        <div className="sidebar-account">
+          <Avatar name={data.name} />
+          <div>
+            <strong>{user ? data.name : 'Visitante'}</strong>
+            <small>{user ? 'Minha conta' : 'Modo de exemplo'}</small>
+          </div>
+        </div>
+      </aside>
+      <main>
+        <header className="topbar">
+          <span>Despesas compartilhadas</span>
+          <div className="row">
+            <span className="private-tag">{user ? 'Conta pessoal' : 'Experimente o Dividi'}</span>
+            <button
+              className="avatar-button"
+              aria-label="Abrir perfil"
+              onClick={() => navigate('profile')}
+            >
+              <Avatar name={data.name} />
+            </button>
+          </div>
+        </header>
+        <div className="content">
+          {error && !modal && (
+            <div role="alert" className="alert error">
+              {error} {!loading && <button onClick={() => void load()}>Recarregar</button>}
+            </div>
+          )}
+          {notice && !modal && (
+            <div className="alert success" role="status">
+              {notice}
+              <button aria-label="Fechar aviso" onClick={() => setNotice('')}>
+                <X size={18} />
+              </button>
+            </div>
+          )}
+          {loading ? (
+            <div className="loading">
+              <LoaderCircle className="spin" />
+              Carregando seus grupos…
+            </div>
+          ) : (
+            <>
+              {(page === 'home' || page === 'groups') && (
+                <GroupsScreen
+                  page={page}
+                  data={data}
+                  user={user}
+                  busy={busy}
+                  demo={demo}
+                  onCreateGroup={openGroupForm}
+                  onOpenGroup={openGroup}
+                  onViewGroups={() => navigate('groups')}
+                />
+              )}
+              {page === 'group' && (
+                <GroupScreen
+                  group={group}
+                  isDemo={isDemo}
+                  tab={groupTab}
+                  busy={busy}
+                  onTabChange={setGroupTab}
+                  onBack={() => navigate('groups')}
+                  onCreateGroup={openGroupForm}
+                  onAddExpense={() => openExpense()}
+                  onShowExpense={(expense) => {
+                    setEditing(expense);
+                    setModal('detail');
+                  }}
+                  onUpdateGroup={updateGroup}
+                />
+              )}
+              {page === 'profile' && (
+                <ProfileScreen
+                  name={data.name}
+                  user={user}
+                  busy={busy}
+                  onSaveName={saveName}
+                  onAuthenticated={onAuthenticated}
+                  onLogout={logout}
+                />
+              )}
+            </>
+          )}
+          <footer>
+            Dividi <span>·</span> Boas contas. Bons momentos.
+          </footer>
+        </div>
+      </main>
+      <dialog
+        ref={dialog}
+        onCancel={(event) => {
+          if (busy) event.preventDefault();
+          else setModal(null);
+        }}
+        onClose={() => {
+          if (!busy) setModal(null);
+        }}
+      >
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">
+              {modal === 'group' ? 'COMECE POR AQUI' : group.name.toUpperCase()}
+            </p>
+            <h2>{modalTitle}</h2>
+          </div>
+          <button
+            className="icon-button"
+            aria-label="Fechar janela"
+            disabled={busy}
+            onClick={() => setModal(null)}
+          >
+            <X />
+          </button>
+        </div>
+        {error && (
+          <div role="alert" className="alert error">
+            {error}
+          </div>
+        )}
+        {modal === 'group' &&
+          (user ? (
+            <GroupForm name={data.name} busy={busy} onSave={createGroup} onError={setError} />
+          ) : (
+            <div className="sign-in">
+              <p>Entre com sua conta para criar grupos e guardar as despesas.</p>
+              <AuthForm onAuthenticated={onAuthenticated} />
+            </div>
+          ))}
+        {modal === 'expense' && (
+          <ExpenseForm
+            key={editing?.id || 'new'}
+            group={group}
+            expense={editing}
+            busy={busy}
+            onSave={saveExpense}
+            onError={setError}
+            onReviewChange={setReviewing}
+          />
+        )}
+        {modal === 'detail' && editing && (
+          <ExpenseDetails
+            group={group}
+            expense={editing}
+            busy={busy}
+            onEdit={() => openExpense(editing)}
+            onDelete={deleteExpense}
+          />
+        )}
+      </dialog>
+    </div>
+  );
 }
