@@ -8,7 +8,7 @@ Sugestão de fala para acompanhar os 16 slides. As notas também estão no Power
 
 Somos Alicia, Eric e Yasmin Santiago. O Dividi nasceu de uma situação comum: várias pessoas dividem gastos, mas no final ninguém sabe exatamente quanto precisa acertar. Vamos apresentar como a ideia evoluiu até virar um site funcional.
 
-Fonte: Equipe informada pela usuária. Ilustração de abertura gerada para o projeto, usada como conceito visual.
+Fonte: Equipe Dividi. Ilustração de abertura do projeto.
 
 ## 02 · Uma viagem.
 
@@ -38,7 +38,7 @@ Fonte: Diário de Bordo Dividi, fornecido pela equipe.
 
 O protótipo no Figma ajudou a organizar as telas e a manter uma linguagem visual simples. O azul indica as ações principais, e as cores ajudam a diferenciar os saldos. A versão web manteve essa identidade e ganhou um layout para telas maiores. A imagem mostra o grupo de exemplo na versão web atual.
 
-Fonte: Captura da versão local do Dividi realizada nesta tarefa. Diário de Bordo Dividi, seção Decisões de interface.
+Fonte: Captura da versão local do Dividi do projeto. Diário de Bordo Dividi, seção Decisões de interface.
 
 ## 07 · O que entrou na primeira versão
 
@@ -74,19 +74,19 @@ Fonte: Código atual: package.json, vite.config.ts, server/app.mjs, server/store
 
 O processo não foi só montar telas. Primeiro foi necessário questionar a utilidade da ideia. Depois vieram o público, o escopo e o protótipo. Na implementação, o foco foi fazer os dados e os cálculos funcionarem juntos. A revisão final separou telas e formulários, centralizou a comunicação com o servidor e deixou o código mais legível.
 
-Fonte: Diário de Bordo Dividi e histórico de desenvolvimento desta conversa. Organização atual descrita no README.md.
+Fonte: Diário de Bordo Dividi e registros de desenvolvimento do projeto. Organização atual descrita no README.md.
 
 ## 13 · O que foi verificado
 
 Foram executados testes de cálculo e de servidor, além da checagem de tipos e da compilação. Também foi testado no navegador o fluxo de despesa com centavos e o registro de acerto no exemplo. Isso demonstra funcionamento técnico local, mas ainda não equivale a uma pesquisa de usabilidade ou validação com usuários reais.
 
-Fonte: Scripts check-calculations.mjs e check-server.mjs; execução de typecheck e build; teste no navegador registrado nesta conversa.
+Fonte: Scripts check-calculations.mjs e check-server.mjs; execução de typecheck e build; verificação local no navegador.
 
 ## 14 · Os próximos passos
 
 O site funciona localmente. A publicação em uma hospedagem independente ainda é um próximo passo. Também fazem sentido convites para que os participantes colaborem, pagamentos parciais e recuperação de senha. A leitura de notas fiscais continua como possibilidade futura, depois de validar o fluxo principal.
 
-Fonte: Estado atual do código e README.md; melhorias discutidas nesta conversa e funções futuras do Diário de Bordo.
+Fonte: Estado atual do código e README.md; melhorias previstas para o projeto e funções futuras do Diário de Bordo.
 
 ## 15 · Uma hipótese de modelo de negócio
 
@@ -98,4 +98,4 @@ Fonte: Diario_de_Bordo_Dividi.docx, seção Modelo de negócio. O código atual 
 
 O aprendizado central foi transformar uma ideia genérica de dividir contas em uma proposta focada na organização de várias despesas. O grupo informa o que aconteceu, e o Dividi mantém os saldos e apresenta o acerto. O código e esta apresentação ficam no repositório do projeto. O repositório foi criado privado, então a equipe precisa conceder acesso antes de compartilhar com outras pessoas.
 
-Fonte: Integrantes informados pela usuária. Repositório criado nesta tarefa: https://github.com/yasmin-sntgo/dividi.
+Fonte: Equipe Dividi. Repositório do projeto: https://github.com/yasmin-sntgo/dividi.

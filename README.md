@@ -76,13 +76,13 @@ Em produção, os cookies são seguros por padrão e exigem HTTPS. Não hospede 
 
 ## Onde encontrar cada parte
 
-- pp/dividi.tsx: navegação e salvamento dos dados compartilhados.
-- pp/groups-screen.tsx, group-screen.tsx e profile-screen.tsx: telas.
-- pp/group-form.tsx, xpense-form.tsx e uth-form.tsx: formulários com seus próprios campos.
-- pp/model.ts: tipos, cálculos e exemplo interativo.
-- pp/api.ts: comunicação com o servidor e tratamento das respostas.
-- pp/ui.tsx e group-cards.tsx: elementos visuais reutilizados.
-- pp/globals.css: todo o estilo, incluindo adaptações para celular.
+- app/dividi.tsx: navegação e salvamento dos dados compartilhados.
+- app/groups-screen.tsx, group-screen.tsx e profile-screen.tsx: telas.
+- app/group-form.tsx, expense-form.tsx e auth-form.tsx: formulários com seus próprios campos.
+- app/model.ts: tipos, cálculos e exemplo interativo.
+- app/api.ts: comunicação com o servidor e tratamento das respostas.
+- app/ui.tsx e group-cards.tsx: elementos visuais reutilizados.
+- app/globals.css: todo o estilo, incluindo adaptações para celular.
 - server/app.mjs: rotas da API e autenticação.
 - server/store.mjs: consultas SQLite.
 - server/validation.mjs: validação das despesas antes de salvar.

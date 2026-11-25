@@ -1,12 +1,6 @@
 /node_modules/
 /dist/
 /data/
-/.wrangler/
-/.sites-runtime/
-/.next/
-/.vinext/
-/.agents/
-/.codex/
 .env*
 !.env.example
 *.tsbuildinfo
